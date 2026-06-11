@@ -2088,14 +2088,13 @@
 
       // 1) Paste your Firebase web-app config here (README step 2).
       //    Leave apiKey empty to run in LOCAL DEMO MODE (predictions saved on this device only).
-      const firebaseConfig = {
+      firebase: {
         apiKey: "AIzaSyDFiZbsC4Xa8KrguonYjD35lMYO-rj5rDU",
         authDomain: "wc26-prediction-f53e7.firebaseapp.com",
-        projectId: "wc26-prediction-f53e7",
-        storageBucket: "wc26-prediction-f53e7.firebasestorage.app",
+        projectId: "wc26-prediction-f53e7", storageBucket: "wc26-prediction-f53e7.firebasestorage.app",
         messagingSenderId: "969042157884",
         appId: "1:969042157884:web:398461953f34fa004c3e39"
-      };
+      },
 
       // 2) Prediction lock deadline (ISO 8601 with timezone). After this moment,
       //    nobody can create or edit predictions. Must match firestore.rules date!
