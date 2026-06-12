@@ -3048,6 +3048,28 @@
       pointer-events: none
     }
 
+    #globalErr {
+      max-width: 780px;
+      margin: 8px auto 0;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, rgba(255, 58, 92, .14), rgba(255, 58, 92, .06));
+      border: 1px solid rgba(255, 58, 92, .4);
+      color: var(--ink);
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.4
+    }
+
+    #globalErr b {
+      color: var(--hot);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 4px
+    }
+
     /* selector for celebrate animation on review card */
     .celebrate {
       animation: celebrate .6s ease-out
@@ -3149,6 +3171,8 @@
     </div>
   </header>
 
+  <div id="globalErr" style="display:none"></div>
+
   <div class="wrap">
     <!-- LIVE / MATCHES -->
     <section class="view on" id="view-live">
@@ -3234,14 +3258,14 @@
     </section>
   </div>
 
-  <nav class="tabs" id="tabs">
-    <button data-v="live" class="on"><span class="ic">⚽</span>Live</button>
-    <button data-v="groups"><span class="ic">▦</span>Groups</button>
-    <button data-v="bracket"><span class="ic">🏆</span>Bracket</button>
-    <button data-v="predict"><span class="ic">✎</span>Predict</button>
-    <button data-v="board"><span class="ic">▲</span>Board</button>
-    <button data-v="stats"><span class="ic">∑</span>Stats</button>
-    <button data-v="rules"><span class="ic">§</span>Rules</button>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Main navigation">
+    <button data-v="live" class="on" role="tab" aria-selected="true" aria-label="Live matches"><span class="ic" aria-hidden="true">⚽</span>Live</button>
+    <button data-v="groups" role="tab" aria-selected="false" aria-label="Groups"><span class="ic" aria-hidden="true">▦</span>Groups</button>
+    <button data-v="bracket" role="tab" aria-selected="false" aria-label="Bracket"><span class="ic" aria-hidden="true">🏆</span>Bracket</button>
+    <button data-v="predict" role="tab" aria-selected="false" aria-label="Make predictions"><span class="ic" aria-hidden="true">✎</span>Predict</button>
+    <button data-v="board" role="tab" aria-selected="false" aria-label="Leaderboard"><span class="ic" aria-hidden="true">▲</span>Board</button>
+    <button data-v="stats" role="tab" aria-selected="false" aria-label="Tournament stats"><span class="ic" aria-hidden="true">∑</span>Stats</button>
+    <button data-v="rules" role="tab" aria-selected="false" aria-label="Rules and scoring"><span class="ic" aria-hidden="true">§</span>Rules</button>
   </nav>
 
   <canvas id="confetti"></canvas>
@@ -3268,6 +3292,11 @@
     const GROUP_KEYS = Object.keys(GROUPS);
     const ALL_TEAMS = GROUP_KEYS.flatMap(g => GROUPS[g].map(x => ({ ...x, group: g })));
     const TEAM_BY_NAME = Object.fromEntries(ALL_TEAMS.map(x => [x.name, x]));
+
+    // structuredClone polyfill for older Safari/iOS (<15.4)
+    if (typeof globalThis.structuredClone !== "function") {
+      globalThis.structuredClone = x => JSON.parse(JSON.stringify(x));
+    }
 
     /* ===================================================================== */
     /* FIFA WC26 BRACKET TEMPLATES (official, per FIFA Annex C)               */
@@ -4036,7 +4065,7 @@
           if (cp.team && cp.team.logo && nm) S.logos[nm] = cp.team.logo;
           return {
             name: nm || cp.team?.displayName || "TBD", matched: !!nm,
-            score: cp.score !== undefined ? parseInt(cp.score, 10) : null,
+            score: Number.isFinite(+cp.score) ? +cp.score : null,
             winner: !!cp.winner, logo: cp.team?.logo || null
           };
         };
@@ -4257,6 +4286,14 @@
     /* header (deadline + ticker) */
     function renderHeader() {
       $("poolName").innerHTML = `WC26 <b>Predictor</b><span class="yr">'26</span>`;
+      // global error banner (Firebase issues, etc.)
+      const ge = $("globalErr");
+      if (S.fbError) {
+        ge.innerHTML = `<b>⚠ Sync issue</b>${esc(S.fbError)}`;
+        ge.style.display = "block";
+      } else {
+        ge.style.display = "none";
+      }
       const dl = $("deadlineLbl");
       if (locked()) {
         dl.classList.add("closed"); dl.classList.remove("urgent");
@@ -4314,22 +4351,21 @@
 
     /* ============================== LIVE VIEW ============================== */
     function renderLive() {
-      if (!S.matches.length) {
-        $("liveBody").innerHTML = `<div class="card note">Fixtures haven't loaded yet. Pull to refresh or check your connection.</div>`; return;
-      }
-      $("liveStamp").textContent = `auto-refreshing · last updated ${new Date(S.lastFetch).toLocaleTimeString()}`;
-
+      // sponsor card — always show if configured, even before fixtures load
       let html = "";
-      // sponsor card
       if (CONFIG.sponsor && CONFIG.sponsor.image && CONFIG.sponsor.message) {
         html += `<div class="sponsor-card">
-      <img class="img" src="${esc(CONFIG.sponsor.image)}" alt="Sponsor">
+      <img class="img" src="${esc(CONFIG.sponsor.image)}" alt="Sponsor" onerror="this.style.display='none'">
       <div class="txt">
         <strong>✨ Proud Sponsor</strong>
         <p>${esc(CONFIG.sponsor.message)}</p>
       </div>
     </div>`;
       }
+      if (!S.matches.length) {
+        $("liveBody").innerHTML = html + `<div class="card note">Fixtures haven't loaded yet. Pull to refresh or check your connection.</div>`; return;
+      }
+      $("liveStamp").textContent = `auto-refreshing · last updated ${new Date(S.lastFetch).toLocaleTimeString()}`;
 
       const byDay = {};
       for (const m of S.matches) { const k = m.date.toDateString(); (byDay[k] = byDay[k] || []).push(m); }
@@ -4929,6 +4965,7 @@
       }
 
       return renderBracketStep(d, ks, bracket);
+    }
 
     /* STEP 7 — golden stats */
     function stepGolden(d) {
@@ -5410,7 +5447,11 @@
       curView = v;
       document.querySelectorAll(".view").forEach(x => x.classList.remove("on"));
       $("view-" + v).classList.add("on");
-      document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+      document.querySelectorAll("nav.tabs button").forEach(b => {
+        const active = b.dataset.v === v;
+        b.classList.toggle("on", active);
+        b.setAttribute("aria-selected", active ? "true" : "false");
+      });
       renderAll();
       window.scrollTo(0, 0);
     }
@@ -5435,6 +5476,10 @@
       await Promise.all([fetchMatches(), loadPlayers(), loadAdminDoc()]);
       computeAll();
       renderAll();
+      // first-load retry: if ESPN gave us nothing, try once more after 5s
+      if (S.matches.length === 0) {
+        setTimeout(async () => { await fetchMatches(); renderAll(); }, 5000);
+      }
       // adaptive polling
       setInterval(async () => {
         const liveNow = S.matches.some(m => m.state === "in");
